@@ -115,6 +115,19 @@ static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR"
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
+#define OPCODE_MASK 0x3E000000
+#define OPCODE_SHIFT 0x19
+#define DST_MASK 0x01C00000
+#define DST_SHIFT 0x16
+#define SRC0_MASK 0x00380000
+#define SRC0_SHIFT 0x13
+#define SRC1_MASK 0x00070000
+#define SRC1_SHIFT 0x10
+#define ALU1_SHIFT 0x10
+#define IMM_MASK 0x0000FFFF
+#define SIGN_EXT_MASK 0x00008000
+#define SIGN_EXT 0xFFFF0000
+
 static void dump_sram(sp_t *sp)
 {
 	FILE *fp;
@@ -165,21 +178,25 @@ static void sp_ctl(sp_t *sp)
 		break;
 
 	case CTL_STATE_FETCH0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
+		llsim_mem_read(sp->sram, spro->pc);
+		sprn->ctl_state = CTL_STATE_FETCH1;
 		break;
 
 	case CTL_STATE_FETCH1:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
+		sprn->inst = llsim_mem_extract_dataout(sp->sram, 31, 0);
+		sprn->ctl_state = CTL_STATE_DEC0;
 		break;
 
 	case CTL_STATE_DEC0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
+		sprn->opcode = (spro->inst & OPCODE_MASK) >> OPCODE_SHIFT;
+    	sprn->dst = (spro->inst & DST_MASK) >> DST_SHIFT;
+		sprn->src0 = (spro->inst & SRC0_MASK) >> SRC0_SHIFT;
+		sprn->src1 = (spro->inst & SRC1_MASK) >> SRC1_SHIFT;
+		sprn->immediate = (spro->inst) & IMM_MASK;
+		if ((spro->inst & SIGN_EXT_MASK) != 0) { // sign extension
+                sprn->immediate = sprn->immediate + (SIGN_EXT);
+        }
+		sprn->ctl_state = CTL_STATE_DEC1;
 		break;
 
 	case CTL_STATE_DEC1:
@@ -189,9 +206,77 @@ static void sp_ctl(sp_t *sp)
 		break;
 
 	case CTL_STATE_EXEC0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
+		switch (spro->opcode) {
+			case ADD:
+				sprn->aluout = spro->alu0 + spro->alu1;
+				break;
+			case SUB:
+				sprn->aluout = spro->alu0 - spro->alu1;
+				break;
+			case LSF:
+				sprn->aluout = spro->alu0 << spro->alu1;
+				break;
+			case RSF:
+				sprn->aluout = spro->alu0 >> spro->alu1;
+				break;	
+			case AND:
+				sprn->aluout = spro->alu0 & spro->alu1;
+				break;
+			case OR:
+				sprn->aluout = spro->alu0 | spro->alu1;
+				break;
+			case XOR:
+				sprn->aluout = spro->alu0 & spro->alu1;
+				break;
+			case LHI:
+				sprn->aluout = (spro->alu0 & IMM_MASK) + (spro->alu1 << ALU1_SHIFT);
+				break;	
+			case LD:
+				llsim_mem_read(sp->sram, spro->alu1);
+				break;
+			case ST:
+				sprn->aluout = 0;
+				break;
+			case JLT:
+				if (spro->alu0 < spro->alu1) {
+                    sprn->aluout = 1;
+                } 
+				else {
+                    sprn->aluout = 0;
+                }
+				break;
+			case JLE:
+				if (spro->alu0 <= spro->alu1) {
+                    sprn->aluout = 1;
+                } 
+				else {
+                    sprn->aluout = 0;
+                }
+				break;	
+			case JEQ:
+				if (spro->alu0 == spro->alu1) {
+                    sprn->aluout = 1;
+                } 
+				else {
+                    sprn->aluout = 0;
+                }
+				break;
+			case JNE:
+				if (spro->alu0 != spro->alu1) {
+                    sprn->aluout = 1;
+                } 
+				else {
+                    sprn->aluout = 0;
+                }
+				break;
+			case JIN:
+				sprn->aluout = 1;
+				break;
+			case HLT:
+				sprn->aluout = 0;
+				break;
+		}
+		sprn->ctl_state = CTL_STATE_EXEC1;
 		break;
 
 	case CTL_STATE_EXEC1:
