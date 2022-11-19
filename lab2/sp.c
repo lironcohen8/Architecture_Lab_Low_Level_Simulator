@@ -126,13 +126,13 @@ static void sp_reset(sp_t *sp)
 #define JIN 20
 
 #define COPY 21
-#define POLL 22
+#define POLLL 22
 
 #define HLT 24
 
 static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR", "LHI",
 				 "LD", "ST", "U", "U", "U", "U", "U", "U",
-				 "JLT", "JLE", "JEQ", "JNE", "JIN", "COPY", "POLL", "U",
+				 "JLT", "JLE", "JEQ", "JNE", "JIN", "COPY", "POLLL", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
 #define OPCODE_MASK 0x3E000000
@@ -312,7 +312,7 @@ static void sp_ctl(sp_t *sp)
 			case JIN:
 				sprn->aluout = 1;
 				break;
-			case CPY:
+			case COPY:
 				if (sp->dma->state == DMA_STATE_REST) {//if at rest move to wait
 					sp->dma->state = DMA_STATE_WAIT;
 				}
@@ -453,8 +453,8 @@ static void sp_ctl(sp_t *sp)
                 sprn->pc = spro->pc + 1;
             }
         }
-		else if (spro->opcode == CPY) {
-            fprintf(inst_trace_fp, ">>>> EXEC: CPY - Source address: %i, Destination address: %i, lengthgth: %i <<<<\n\n", spro->r[spro->src0], spro->r[spro->dst], spro->r[spro->src1]);
+		else if (spro->opcode == COPY) {
+            fprintf(inst_trace_fp, ">>>> EXEC: COPY - Source address: %i, Destination address: %i, lengthgth: %i <<<<\n\n", spro->r[spro->src0], spro->r[spro->dst], spro->r[spro->src1]);
             while ((sp->dma->state) != DMA_STATE_WAIT) {} //TODO: what to do in case of 2 copy command?
 
             sp->dma->source = spro->r[spro->src0];
@@ -468,8 +468,8 @@ static void sp_ctl(sp_t *sp)
             }
             sprn->pc = spro->pc + 1;	//pc++
         }
-        else if (spro->opcode == POL) {
-            fprintf(inst_trace_fp, ">>>> EXEC: POL - Remaining copy: %i <<<<\n\n", sp->dma->remain);
+        else if (spro->opcode == POLL) {
+            fprintf(inst_trace_fp, ">>>> EXEC: POLL - Remaining copy: %i <<<<\n\n", sp->dma->remain);
             sprn->r[spro->dst] = sp->dma->remain;
             sprn->pc = spro->pc + 1;	//pc++
         }
