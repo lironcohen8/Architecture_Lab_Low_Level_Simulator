@@ -334,7 +334,7 @@ static void sp_ctl(sp_t *sp)
             fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
             fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc, (spro->cycle_counter)/6);
             if (sp->dma->state) { // if not in rest (0), 1,2 are truthy 
-                pthread_join(sp->dma_thread, NULL); //waits for all the the threads to end
+                pthread_join(sp->dma_thread, NULL); //waits for all the  threads to end
                 sp->dma->state = DMA_STATE_REST; // move back to init state on halt
             }
 			dump_sram(sp);
