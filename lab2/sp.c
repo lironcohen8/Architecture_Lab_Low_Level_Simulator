@@ -5,7 +5,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <pthread.h>
 #include "llsim.h"
 
 #define sp_printf(a...)						\
