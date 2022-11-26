@@ -20,7 +20,7 @@
 
 	// Polling and checking for copy completion
 	asm_cmd(POL, 2, 0, 0, 0); // 11: R[2] = DMA_S->REMAIN (number of bytes left to copy)
-	asm_cmd(JNE, 2, 0, 0, 11); // 12: if R[2] != 0 jump to 11
+	asm_cmd(JNE, 0, 2, 0, 11); // 12: if R[2] != 0 jump to 11
 
 	// Copy validation
 	asm_cmd(ADD, 2, 1, 0, 1); // 13: R2 = 1 COPY CORRECT
