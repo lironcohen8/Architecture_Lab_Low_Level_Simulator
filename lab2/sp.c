@@ -5,7 +5,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <pthread.h>
 #include "llsim.h"
 
 #define sp_printf(a...)						\
@@ -16,6 +16,11 @@
 
 int nr_simulated_instructions = 0;
 FILE *inst_trace_fp = NULL, *cycle_trace_fp = NULL;
+
+// dma states
+#define DMA_STATE_REST		0
+#define DMA_STATE_WAIT		1
+#define DMA_STATE_ACTIVE	2
 
 typedef struct sp_registers_s {
 	// 6 32 bit registers (r[0], r[1] don't exist)
@@ -81,7 +86,18 @@ typedef struct sp_s {
 	sp_registers_t *spro, *sprn;
 	
 	int start;
+
+	dma_t*    dma;
+    pthread_t dma_thread;
 } sp_t;
+
+typedef struct dma_s {
+    int source;
+    int destination;
+    int length;
+    int state;
+    int remain;
+} dma_t;
 
 static void sp_reset(sp_t *sp)
 {
@@ -108,11 +124,15 @@ static void sp_reset(sp_t *sp)
 #define JEQ 18
 #define JNE 19
 #define JIN 20
+
+#define COPY 21
+#define POLLL 22
+
 #define HLT 24
 
 static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR", "LHI",
 				 "LD", "ST", "U", "U", "U", "U", "U", "U",
-				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
+				 "JLT", "JLE", "JEQ", "JNE", "JIN", "COPY", "POLLL", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
 #define OPCODE_MASK 0x3E000000
@@ -292,6 +312,11 @@ static void sp_ctl(sp_t *sp)
 			case JIN:
 				sprn->aluout = 1;
 				break;
+			case COPY:
+				if (sp->dma->state == DMA_STATE_REST) {//if at rest move to wait
+					sp->dma->state = DMA_STATE_WAIT;
+				}
+				break;
 			case HLT:
 				break;
 		}
@@ -308,7 +333,11 @@ static void sp_ctl(sp_t *sp)
             sprn->ctl_state = CTL_STATE_IDLE;
             fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
             fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc, (spro->cycle_counter)/6);
-            dump_sram(sp);
+            if (sp->dma->state) { // if not in rest (0), 1,2 are truthy 
+                pthread_join(sp->dma_thread, NULL); //waits for all the  threads to end
+                sp->dma->state = DMA_STATE_REST; // move back to init state on halt
+            }
+			dump_sram(sp);
             sp->start = 0;
             llsim_stop();
             break;
@@ -424,6 +453,26 @@ static void sp_ctl(sp_t *sp)
                 sprn->pc = spro->pc + 1;
             }
         }
+		else if (spro->opcode == COPY) {
+            fprintf(inst_trace_fp, ">>>> EXEC: COPY - Source address: %i, Destination address: %i, lengthgth: %i <<<<\n\n", spro->r[spro->src0], spro->r[spro->dst], spro->r[spro->src1]);
+            while ((sp->dma->state) != DMA_STATE_WAIT) {} //TODO: what to do in case of 2 copy command?
+
+            sp->dma->source = spro->r[spro->src0];
+            sp->dma->destination = spro->r[spro->dst];
+            sp->dma->length = spro->r[spro->src1];
+            sp->dma->state = DMA_STATE_ACTIVE;
+
+            if (pthread_create(&sp->dma_thread, NULL, dma_copy,(void*) sp)) {	// create new thread, return 0 on success
+				printf("error with pthread_create\n");
+				exit(1);
+            }
+            sprn->pc = spro->pc + 1;	//pc++
+        }
+        else if (spro->opcode == POLL) {
+            fprintf(inst_trace_fp, ">>>> EXEC: POLL - Remaining copy: %i <<<<\n\n", sp->dma->remain);
+            sprn->r[spro->dst] = sp->dma->remain;
+            sprn->pc = spro->pc + 1;	//pc++
+        }
         break;
 	}
 }
@@ -529,4 +578,21 @@ void sp_init(char *program_name)
 	sp->start = 1;
 
 	sp_register_all_registers(sp);
+
+    sp->dma = (dma_t*) calloc(sizeof(dma_t), sizeof(char));
+}
+
+void* dma_copy(void* sp_copy) {
+    int i;
+    sp_t* sp = (sp_t*) sp_copy;
+    sp->dma->remain = sp->dma->length;
+
+    for (i = 0; i < sp->dma->length; i++) {//copy
+        sp->sram->data[sp->dma->destination + i] = sp->sram->data[sp->dma->source + i];
+        sp->dma->remain -= 1;
+    }
+    if (sp->dma->remain == 0) {//finished, move back to wait
+        sp->dma->state = DMA_STATE_WAIT;
+    }
+    return (void *) 0;
 }
