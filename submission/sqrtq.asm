@@ -1,3 +1,6 @@
+// Liron Cohen 207481268
+// Yuval Mor 209011543
+
 asm_cmd(LD, 2, 0, 1, 1000); // 0: R2 = MEM[1000] = INPUT = NUM
 asm_cmd(ADD, 3, 0, 0, 0); // 1: R3 = RES = 0
 asm_cmd(ADD, 4, 1, 0, 1); // 2: R4 = 1
@@ -19,12 +22,12 @@ asm_cmd(RSF, 4, 4, 1, 2); // 9: BIT >> 2
 asm_cmd(JEQ, 0, 0, 0, 8); // 10: JUMPS TO FIRST LOOP
 
 // SECOND LOOP
-asm_cmd(JEQ, 0, 4, 0, 17); // 11: IF BIT IS 0 JUMPS TO SHIFT BIT
+asm_cmd(JEQ, 0, 4, 0, 19); // 11: IF BIT IS 0 JUMPS TO STORE
 asm_cmd(ADD, 5, 3, 4, 0); // 12: R5 = RES + BIT
-asm_cmd(RSF, 6, 3, 1, 1); // 13: R6 = RES >> 1
-asm_cmd(JLE, 0, 5, 2, 17); // 14: IF NUM < RET + BIT JUMPS TO SHIFT BIT
+asm_cmd(RSF, 3, 3, 1, 1); // 13: RES = RES >> 1
+asm_cmd(JLT, 0, 2, 5, 17); // 14: IF NUM < RES + BIT JUMPS TO SHIFT BIT
 asm_cmd(SUB, 2, 2, 5, 0); // 15: NUM = NUM - (RES + BIT)
-asm_cmd(ADD, 3, 6, 4, 0); // 16: RES = (RES >> 1) + BIT
+asm_cmd(ADD, 3, 3, 4, 0); // 16: RES = RES + BIT
 asm_cmd(RSF, 4, 4, 1, 2); // 17: BIT >> 2 // SHIFT BIT
 asm_cmd(JEQ, 0, 0, 0, 11); // 18: JUMPS TO SECOND LOOP
 
